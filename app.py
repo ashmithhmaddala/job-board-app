@@ -15,8 +15,8 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///jobs.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Adzuna API credentials
-app.config['ADZUNA_APP_ID'] = '93b7ffa0'
-app.config['ADZUNA_APP_KEY'] = '96e9b1996c61f0d68a267b2ae4f9993b'
+app.config['ADZUNA_APP_ID'] = 'YOUR_APP_ID'
+app.config['ADZUNA_APP_KEY'] = 'YOUR_APP_KEY'
 
 db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
