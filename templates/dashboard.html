@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard | Job Board Monitor</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --primary-dark: #1e40af;
+            --secondary-color: #3b82f6;
+            --accent-color: #60a5fa;
+            --text-color: #334155;
+            --light-color: #f8fafc;
+            --light-gray: #f1f5f9;
+            --dark-color: #0f172a;
+            --border-radius: 12px;
+            --box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        }
+        
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: var(--light-gray);
+            color: var(--text-color);
+            min-height: 100vh;
+        }
+        
+        .navbar {
+            background: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
+            padding: 15px 0;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        .navbar-brand {
+            font-weight: 700;
+            font-size: 1.5rem;
+            color: white !important;
+        }
+        
+        .navbar-nav .nav-link {
+            color: rgba(255, 255, 255, 0.9) !important;
+            font-weight: 500;
+            padding: 10px 15px;
+            border-radius: 8px;
+            transition: all 0.3s;
+        }
+        
+        .navbar-nav .nav-link:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+            transform: translateY(-2px);
+        }
+        
+        .filter-card {
+            background-color: white;
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            border: none;
+            margin-bottom: 25px;
+        }
+        
+        .filter-card .card-header {
+            background-color: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
+            padding: 15px 20px;
+            font-weight: 600;
+        }
+        
+        .filter-card .card-body {
+            padding: 20px;
+        }
+        
+        .form-select {
+            border-radius: 8px;
+            padding: 10px;
+            border: 1px solid #e2e8f0;
+            color: var(--text-color);
+        }
+        
+        .form-select:focus {
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 0.2rem rgba(96, 165, 250, 0.25);
+        }
+        
+        .btn-filter {
+            background: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
+            border: none;
+            box-shadow: 0 4px 6px rgba(37, 99, 235, 0.2);
+            font-weight: 500;
+            padding: 10px 15px;
+            transition: all 0.3s;
+        }
+        
+        .btn-filter:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 10px rgba(37, 99, 235, 0.3);
+        }
+        
+        .job-card {
+            background-color: white;
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            border: none;
+            margin-bottom: 25px;
+            transition: all 0.3s;
+            height: 100%;
+        }
+        
+        .job-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 18px rgba(0, 0, 0, 0.15);
+        }
+        
+        .job-card .card-header {
+            background-color: white;
+            border-bottom: 1px solid #e2e8f0;
+            padding: 15px 20px;
+        }
+        
+        .job-card .card-body {
+            padding: 20px;
+        }
+        
+        .job-card .card-footer {
+            background-color: #f8fafc;
+            border-top: 1px solid #e2e8f0;
+            padding: 12px 20px;
+            font-size: 0.85rem;
+        }
+        
+        .badge-category {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
+            border-radius: 50px;
+            padding: 5px 12px;
+            font-weight: 500;
+            font-size: 0.75rem;
+        }
+        
+        .job-title {
+            font-weight: 600;
+            color: var(--dark-color);
+            margin-bottom: 5px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .company-name {
+            color: #64748b;
+            font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .job-info {
+            display: flex;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+            font-size: 0.85rem;
+        }
+        
+        .job-info-item {
+            display: flex;
+            align-items: center;
+            margin-right: 20px;
+            margin-bottom: 10px;
+            color: #64748b;
+        }
+        
+        .job-info-item i {
+            margin-right: 6px;
+            font-size: 1rem;
+        }
+        
+        .job-description {
+            font-size: 0.9rem;
+            color: #475569;
+            line-height: 1.5;
+            max-height: 90px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+        
+        .btn-apply {
+            background: var(--primary-color);
+            border: none;
+            border-radius: 8px;
+            padding: 8px 16px;
+            font-weight: 500;
+            font-size: 0.9rem;
+            transition: all 0.3s;
+        }
+        
+        .btn-apply:hover {
+            background: var(--primary-dark);
+            transform: translateY(-2px);
+        }
+        
+        .alert {
+            border-radius: 8px;
+            border: none;
+        }
+        
+        .pagination {
+            justify-content: center;
+            margin-top: 30px;
+            margin-bottom: 50px;
+        }
+        
+        .pagination .page-item .page-link {
+            color: var(--text-color);
+            border: none;
+            margin: 0 3px;
+            border-radius: 8px;
+            padding: 8px 14px;
+            transition: all 0.2s;
+        }
+        
+        .pagination .page-item.active .page-link {
+            background: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            box-shadow: 0 4px 8px rgba(37, 99, 235, 0.25);
+        }
+        
+        .pagination .page-item .page-link:hover:not(.active) {
+            background-color: #f1f5f9;
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand" href="{{ url_for('dashboard') }}">
+                <i class="bi bi-briefcase-fill me-2"></i>Job Board Monitor
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    {% if current_user.is_admin %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('admin_dashboard') }}">
+                            <i class="bi bi-speedometer2 me-1"></i>Admin Panel
+                        </a>
+                    </li>
+                    {% endif %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('manual_check') }}">
+                            <i class="bi bi-arrow-repeat me-1"></i>Refresh Jobs
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <span class="nav-link">
+                            <i class="bi bi-person-circle me-1"></i>{{ current_user.username }}
+                        </span>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('logout') }}">
+                            <i class="bi bi-box-arrow-right me-1"></i>Logout
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container py-5">
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- Filters -->
+        <div class="card filter-card">
+            <div class="card-header">
+                <i class="bi bi-funnel me-2"></i>Filter Jobs
+            </div>
+            <div class="card-body">
+                <form method="GET" action="{{ url_for('dashboard') }}">
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <label for="category" class="form-label">Industry Category</label>
+                            <select id="category" name="category" class="form-select">
+                                <option value="">All Categories</option>
+                                {% for category in categories %}
+                                    <option value="{{ category[0] }}" {% if current_category == category[0] %}selected{% endif %}>
+                                        {{ category[0] }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="company" class="form-label">Company</label>
+                            <select id="company" name="company" class="form-select">
+                                <option value="">All Companies</option>
+                                {% for company in companies %}
+                                    <option value="{{ company[0] }}" {% if current_company == company[0] %}selected{% endif %}>
+                                        {{ company[0] }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="location" class="form-label">Location</label>
+                            <select id="location" name="location" class="form-select">
+                                <option value="">All Locations</option>
+                                {% for location in locations %}
+                                    <option value="{{ location[0] }}" {% if current_location == location[0] %}selected{% endif %}>
+                                        {{ location[0] }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3 d-flex align-items-end">
+                            <button type="submit" class="btn btn-primary btn-filter w-100">
+                                <i class="bi bi-search me-1"></i>Search
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Job Listings -->
+        <div class="row">
+            {% for job in jobs.items %}
+                <div class="col-md-6 col-lg-4 mb-4">
+                    <div class="job-card">
+                        <div class="card-header position-relative">
+                            <h5 class="job-title">{{ job.title }}</h5>
+                            <span class="badge-category">{{ job.category }}</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="company-name">
+                                <i class="bi bi-building me-2"></i>{{ job.company }}
+                            </div>
+                            
+                            <div class="job-info">
+                                <div class="job-info-item">
+                                    <i class="bi bi-geo-alt"></i>{{ job.location }}
+                                </div>
+                                <div class="job-info-item">
+                                    <i class="bi bi-calendar-date"></i>{{ job.date_posted.strftime('%Y-%m-%d') if job.date_posted else 'Unknown' }}
+                                </div>
+                            </div>
+                            
+                            {% if job.salary_min or job.salary_max %}
+                                <div class="job-info">
+                                    <div class="job-info-item">
+                                        <i class="bi bi-currency-rupee text-success"></i>
+                                        {% if job.salary_min and job.salary_max %}
+                                            ₹{{ "{:,.0f}".format(job.salary_min) }} - ₹{{ "{:,.0f}".format(job.salary_max) }}
+                                        {% elif job.salary_min %}
+                                            Min: ₹{{ "{:,.0f}".format(job.salary_min) }}
+                                        {% elif job.salary_max %}
+                                            Up to ₹{{ "{:,.0f}".format(job.salary_max) }}
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            {% endif %}
+                            
+                            <div class="job-description">
+                                {{ job.description[:200] + '...' if job.description and job.description|length > 200 else job.description or 'No description available' }}
+                            </div>
+                            
+                            <a href="{{ job.application_link }}" target="_blank" class="btn btn-apply">
+                                <i class="bi bi-link-45deg me-1"></i>Apply Now
+                            </a>
+                        </div>
+                        <div class="card-footer text-muted">
+                            <i class="bi bi-clock me-1"></i>Added {{ job.date_added.strftime('%Y-%m-%d %H:%M') }}
+                        </div>
+                    </div>
+                </div>
+            {% else %}
+                <div class="col-12">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i>No job postings found. Please check back later or try different filter criteria.
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+
+        <!-- Pagination -->
+        {% if jobs.pages > 1 %}
+            <nav aria-label="Page navigation">
+                <ul class="pagination">
+                    {% if jobs.has_prev %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('dashboard', page=jobs.prev_num, category=current_category, company=current_company, location=current_location) }}">
+                                <i class="bi bi-chevron-left"></i> Previous
+                            </a>
+                        </li>
+                    {% endif %}
+                    
+                    {% for page_num in jobs.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                        {% if page_num %}
+                            <li class="page-item {% if jobs.page == page_num %}active{% endif %}">
+                                <a class="page-link" href="{{ url_for('dashboard', page=page_num, category=current_category, company=current_company, location=current_location) }}">
+                                    {{ page_num }}
+                                </a>
+                            </li>
+                        {% else %}
+                            <li class="page-item disabled">
+                                <span class="page-link">...</span>
+                            </li>
+                        {% endif %}
+                    {% endfor %}
+                    
+                    {% if jobs.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('dashboard', page=jobs.next_num, category=current_category, company=current_company, location=current_location) }}">
+                                Next <i class="bi bi-chevron-right"></i>
+                            </a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </nav>
+        {% endif %}
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
