@@ -11,6 +11,8 @@ from dotenv import load_dotenv
 load_dotenv()
 import os
 
+
+
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///jobs.db'
@@ -21,6 +23,9 @@ app.config['ADZUNA_APP_ID'] = os.environ.get('ADZUNA_APP_ID')
 app.config['ADZUNA_APP_KEY'] = os.environ.get('ADZUNA_APP_KEY')
 
 db = SQLAlchemy(app)
+if os.environ.get("RENDER", None):  # Only run on Render
+    with app.app_context():
+        db.create_all()
 bcrypt = Bcrypt(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
