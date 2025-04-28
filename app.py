@@ -7,16 +7,18 @@ from functools import wraps
 import requests
 import hashlib
 import datetime
+from dotenv import load_dotenv
+load_dotenv()
 import os
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'your-secret-key-change-this-in-production'
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///jobs.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Adzuna API credentials
-app.config['ADZUNA_APP_ID'] = '93b7ffa0'
-app.config['ADZUNA_APP_KEY'] = '96e9b1996c61f0d68a267b2ae4f9993b'
+app.config['ADZUNA_APP_ID'] = os.environ.get('ADZUNA_APP_ID')
+app.config['ADZUNA_APP_KEY'] = os.environ.get('ADZUNA_APP_KEY')
 
 db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)

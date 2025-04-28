@@ -5,3 +5,4 @@ Flask-Bcrypt
 Flask-APScheduler
 requests
 gunicorn
+python-dotenv
