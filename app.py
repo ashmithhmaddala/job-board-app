@@ -27,6 +27,12 @@ scheduler = APScheduler()
 scheduler.init_app(app)
 scheduler.api_enabled = True
 
+# --- Many-to-many relationship for applied jobs ---
+applied_jobs = db.Table('applied_jobs',
+    db.Column('user_id', db.Integer, db.ForeignKey('user.id')),
+    db.Column('job_id', db.Integer, db.ForeignKey('job_posting.id'))
+)
+
 COMPANIES = {
     "Banks": ["JP Morgan", "Morgan Stanley", "Goldman Sachs", "Wells Fargo"],
     "Tech Firms": ["Google", "Microsoft", "Amazon", "Apple", "NVidia", "Atlassian", "Meta", "Texas Instruments",
@@ -50,6 +56,7 @@ class User(UserMixin, db.Model):
     is_admin = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.datetime.now)
     last_login = db.Column(db.DateTime)
+    applied = db.relationship('JobPosting', secondary=applied_jobs, backref='applicants')
 
 class JobPosting(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -65,7 +72,6 @@ class JobPosting(db.Model):
     date_posted = db.Column(db.DateTime)
     date_added = db.Column(db.DateTime, default=datetime.datetime.now)
 
-# --- CREATE TABLES AND ADMIN USER ON STARTUP ---
 with app.app_context():
     db.create_all()
     if not User.query.first():
@@ -153,29 +159,22 @@ def dashboard():
     category_filter = request.args.get('category', '')
     company_filter = request.args.get('company', '')
     location_filter = request.args.get('location', '')
-    sort_by = request.args.get('sort_by', 'date_added')  # New sort parameter
-    
+    sort_by = request.args.get('sort_by', 'date_added')
     query = JobPosting.query
-    
     if category_filter:
         query = query.filter_by(category=category_filter)
     if company_filter:
         query = query.filter_by(company=company_filter)
     if location_filter:
         query = query.filter(JobPosting.location.contains(location_filter))
-    
-    # Add sorting logic
     if sort_by == 'date_posted':
         jobs = query.order_by(JobPosting.date_posted.desc())
-    else:  # Default to date_added
+    else:
         jobs = query.order_by(JobPosting.date_added.desc())
-        
     jobs = jobs.paginate(page=page, per_page=15)
-    
     categories = db.session.query(JobPosting.category).distinct().all()
     companies = db.session.query(JobPosting.company).distinct().all()
     locations = db.session.query(JobPosting.location).distinct().all()
-    
     return render_template('dashboard.html',
                           jobs=jobs,
                           categories=categories,
@@ -184,8 +183,34 @@ def dashboard():
                           current_category=category_filter,
                           current_company=company_filter,
                           current_location=location_filter,
-                          current_sort=sort_by)  # Add current_sort to context
+                          current_sort=sort_by)
 
+@app.route('/profile')
+@login_required
+def profile():
+    return render_template('profile.html', user=current_user)
+
+@app.route('/apply/<int:job_id>')
+@login_required
+def apply_job(job_id):
+    job = JobPosting.query.get_or_404(job_id)
+    if job not in current_user.applied:
+        current_user.applied.append(job)
+        db.session.commit()
+        flash('Job added to your applied list!', 'success')
+    else:
+        flash('You have already marked this job as applied.', 'info')
+    return redirect(request.referrer or url_for('dashboard'))
+
+@app.route('/unapply/<int:job_id>')
+@login_required
+def unapply_job(job_id):
+    job = JobPosting.query.get_or_404(job_id)
+    if job in current_user.applied:
+        current_user.applied.remove(job)
+        db.session.commit()
+        flash('Job removed from your applied list.', 'info')
+    return redirect(request.referrer or url_for('profile'))
 
 @app.route('/admin')
 @login_required
