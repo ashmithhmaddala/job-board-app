@@ -1,24 +1,30 @@
+import os
+import datetime
+import hashlib
+import requests
+import sqlalchemy
 from flask import Flask, render_template, redirect, url_for, flash, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_bcrypt import Bcrypt
 from flask_apscheduler import APScheduler
-from functools import wraps
-import requests
-import hashlib
-import datetime
-from dotenv import load_dotenv
-import os
-
-# --- Flask-Migrate for safe migrations ---
 from flask_migrate import Migrate, upgrade as alembic_upgrade
-import sqlalchemy
+from functools import wraps
+from dotenv import load_dotenv
 
 load_dotenv()
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///jobs.db'
+
+# --- Database URL logic: PostgreSQL for prod, SQLite fallback for dev ---
+database_url = os.environ.get('DATABASE_URL')
+if database_url and database_url.startswith('postgres://'):
+    database_url = database_url.replace('postgres://', 'postgresql://', 1)
+if not database_url:
+    database_url = 'sqlite:///jobs.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['ADZUNA_APP_ID'] = os.environ.get('ADZUNA_APP_ID')
 app.config['ADZUNA_APP_KEY'] = os.environ.get('ADZUNA_APP_KEY')
@@ -32,7 +38,7 @@ scheduler = APScheduler()
 scheduler.init_app(app)
 scheduler.api_enabled = True
 
-# --- Many-to-many relationship for applied jobs ---
+# Many-to-many relationship table for applied jobs
 applied_jobs = db.Table('applied_jobs',
     db.Column('user_id', db.Integer, db.ForeignKey('user.id')),
     db.Column('job_id', db.Integer, db.ForeignKey('job_posting.id'))
@@ -90,7 +96,7 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-# --- AUTO RUN MIGRATIONS ON STARTUP IF NEEDED ---
+# Auto run migrations on startup if needed
 def db_needs_upgrade():
     inspector = sqlalchemy.inspect(db.engine)
     return not inspector.has_table('user')
