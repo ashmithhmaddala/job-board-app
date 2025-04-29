@@ -10,6 +10,9 @@ import datetime
 from dotenv import load_dotenv
 import os
 
+# --- NEW: Flask-Migrate for safe migrations ---
+from flask_migrate import Migrate
+
 load_dotenv()
 
 app = Flask(__name__)
@@ -20,6 +23,7 @@ app.config['ADZUNA_APP_ID'] = os.environ.get('ADZUNA_APP_ID')
 app.config['ADZUNA_APP_KEY'] = os.environ.get('ADZUNA_APP_KEY')
 
 db = SQLAlchemy(app)
+migrate = Migrate(app, db)  # Enable Flask-Migrate
 bcrypt = Bcrypt(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
@@ -71,19 +75,6 @@ class JobPosting(db.Model):
     application_link = db.Column(db.String(500))
     date_posted = db.Column(db.DateTime)
     date_added = db.Column(db.DateTime, default=datetime.datetime.now)
-
-with app.app_context():
-    db.create_all()
-    if not User.query.first():
-        admin = User(
-            username='admin',
-            email='admin@example.com',
-            password=bcrypt.generate_password_hash('admin').decode('utf-8'),
-            is_admin=True
-        )
-        db.session.add(admin)
-        db.session.commit()
-        print("Admin user created: admin@example.com / admin")
 
 @login_manager.user_loader
 def load_user(user_id):

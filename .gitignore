@@ -8,3 +8,4 @@ __pycache__/
 .env
 jobapidetails.txt
 instance/
+jobs.db
