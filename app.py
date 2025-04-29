@@ -10,8 +10,9 @@ import datetime
 from dotenv import load_dotenv
 import os
 
-# --- NEW: Flask-Migrate for safe migrations ---
-from flask_migrate import Migrate
+# --- Flask-Migrate for safe migrations ---
+from flask_migrate import Migrate, upgrade as alembic_upgrade
+import sqlalchemy
 
 load_dotenv()
 
@@ -23,7 +24,7 @@ app.config['ADZUNA_APP_ID'] = os.environ.get('ADZUNA_APP_ID')
 app.config['ADZUNA_APP_KEY'] = os.environ.get('ADZUNA_APP_KEY')
 
 db = SQLAlchemy(app)
-migrate = Migrate(app, db)  # Enable Flask-Migrate
+migrate = Migrate(app, db)
 bcrypt = Bcrypt(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
@@ -88,6 +89,17 @@ def admin_required(f):
             return redirect(url_for('login'))
         return f(*args, **kwargs)
     return decorated_function
+
+# --- AUTO RUN MIGRATIONS ON STARTUP IF NEEDED ---
+def db_needs_upgrade():
+    inspector = sqlalchemy.inspect(db.engine)
+    return not inspector.has_table('user')
+
+with app.app_context():
+    if db_needs_upgrade():
+        print("Running database migrations...")
+        alembic_upgrade()
+        print("Database migrations complete.")
 
 @app.route('/')
 def home():
