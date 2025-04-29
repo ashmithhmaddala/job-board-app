@@ -6,3 +6,4 @@ Flask-APScheduler
 requests
 gunicorn
 python-dotenv
+flask_migrate
