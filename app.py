@@ -91,15 +91,15 @@ def admin_required(f):
     return decorated_function
 
 # --- AUTO RUN MIGRATIONS ON STARTUP IF NEEDED ---
-def db_needs_upgrade():
-    inspector = sqlalchemy.inspect(db.engine)
-    return not inspector.has_table('user')
+# def db_needs_upgrade():
+#     inspector = sqlalchemy.inspect(db.engine)
+#     return not inspector.has_table('user')
 
-with app.app_context():
-    if db_needs_upgrade():
-        print("Running database migrations...")
-        alembic_upgrade()
-        print("Database migrations complete.")
+# with app.app_context():
+#     if db_needs_upgrade():
+#         print("Running database migrations...")
+#         alembic_upgrade()
+#         print("Database migrations complete.")
 
 @app.route('/')
 def home():
