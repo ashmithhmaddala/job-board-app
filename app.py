@@ -8,24 +8,18 @@ import requests
 import hashlib
 import datetime
 from dotenv import load_dotenv
-load_dotenv()
 import os
 
-
+load_dotenv()
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///jobs.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
-# Adzuna API credentials
 app.config['ADZUNA_APP_ID'] = os.environ.get('ADZUNA_APP_ID')
 app.config['ADZUNA_APP_KEY'] = os.environ.get('ADZUNA_APP_KEY')
 
 db = SQLAlchemy(app)
-if os.environ.get("RENDER", None):  # Only run on Render
-    with app.app_context():
-        db.create_all()
 bcrypt = Bcrypt(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
@@ -70,6 +64,20 @@ class JobPosting(db.Model):
     application_link = db.Column(db.String(500))
     date_posted = db.Column(db.DateTime)
     date_added = db.Column(db.DateTime, default=datetime.datetime.now)
+
+# --- CREATE TABLES AND ADMIN USER ON STARTUP ---
+with app.app_context():
+    db.create_all()
+    if not User.query.first():
+        admin = User(
+            username='admin',
+            email='admin@example.com',
+            password=bcrypt.generate_password_hash('admin').decode('utf-8'),
+            is_admin=True
+        )
+        db.session.add(admin)
+        db.session.commit()
+        print("Admin user created: admin@example.com / admin")
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -145,17 +153,29 @@ def dashboard():
     category_filter = request.args.get('category', '')
     company_filter = request.args.get('company', '')
     location_filter = request.args.get('location', '')
+    sort_by = request.args.get('sort_by', 'date_added')  # New sort parameter
+    
     query = JobPosting.query
+    
     if category_filter:
         query = query.filter_by(category=category_filter)
     if company_filter:
         query = query.filter_by(company=company_filter)
     if location_filter:
         query = query.filter(JobPosting.location.contains(location_filter))
-    jobs = query.order_by(JobPosting.date_added.desc()).paginate(page=page, per_page=15)
+    
+    # Add sorting logic
+    if sort_by == 'date_posted':
+        jobs = query.order_by(JobPosting.date_posted.desc())
+    else:  # Default to date_added
+        jobs = query.order_by(JobPosting.date_added.desc())
+        
+    jobs = jobs.paginate(page=page, per_page=15)
+    
     categories = db.session.query(JobPosting.category).distinct().all()
     companies = db.session.query(JobPosting.company).distinct().all()
     locations = db.session.query(JobPosting.location).distinct().all()
+    
     return render_template('dashboard.html',
                           jobs=jobs,
                           categories=categories,
@@ -163,7 +183,9 @@ def dashboard():
                           locations=locations,
                           current_category=category_filter,
                           current_company=company_filter,
-                          current_location=location_filter)
+                          current_location=location_filter,
+                          current_sort=sort_by)  # Add current_sort to context
+
 
 @app.route('/admin')
 @login_required
@@ -172,28 +194,24 @@ def admin_dashboard():
     user_count = User.query.count()
     job_count = JobPosting.query.count()
     company_count = db.session.query(JobPosting.company).distinct().count()
-    
     job_by_category = [
         {'category': category, 'count': count}
         for category, count in db.session.query(
             JobPosting.category, db.func.count(JobPosting.id)
         ).group_by(JobPosting.category).all()
     ]
-    
     job_by_company = [
         {'company': company, 'count': count}
         for company, count in db.session.query(
             JobPosting.company, db.func.count(JobPosting.id)
         ).group_by(JobPosting.company).order_by(db.func.count(JobPosting.id).desc()).limit(10).all()
     ]
-    
     job_by_location = [
         {'location': location, 'count': count}
         for location, count in db.session.query(
             JobPosting.location, db.func.count(JobPosting.id)
         ).group_by(JobPosting.location).order_by(db.func.count(JobPosting.id).desc()).limit(10).all()
     ]
-
     return render_template(
         'admin/dashboard.html',
         user_count=user_count,
@@ -216,11 +234,9 @@ def admin_users():
 @admin_required
 def toggle_admin(user_id):
     user = User.query.get_or_404(user_id)
-    
     if user.is_admin and User.query.filter_by(is_admin=True).count() == 1:
         flash('Cannot remove the last admin', 'danger')
         return redirect(url_for('admin_users'))
-    
     user.is_admin = not user.is_admin
     db.session.commit()
     flash(f'Admin status {"granted to" if user.is_admin else "revoked from"} {user.username}', 'success')
@@ -231,11 +247,9 @@ def toggle_admin(user_id):
 @admin_required
 def delete_user(user_id):
     user = User.query.get_or_404(user_id)
-    
     if user.id == current_user.id:
         flash('You cannot delete your own account', 'danger')
         return redirect(url_for('admin_users'))
-    
     db.session.delete(user)
     db.session.commit()
     flash(f'User {user.username} deleted', 'success')
@@ -249,23 +263,18 @@ def admin_jobs():
     category_filter = request.args.get('category', '')
     company_filter = request.args.get('company', '')
     location_filter = request.args.get('location', '')
-    
     query = JobPosting.query
-    
     if category_filter:
         query = query.filter_by(category=category_filter)
     if company_filter:
         query = query.filter_by(company=company_filter)
     if location_filter:
         query = query.filter(JobPosting.location.contains(location_filter))
-    
     jobs = query.order_by(JobPosting.date_added.desc()).paginate(page=page, per_page=15)
-    
     categories = db.session.query(JobPosting.category).distinct().all()
     companies = db.session.query(JobPosting.company).distinct().all()
     locations = db.session.query(JobPosting.location).distinct().all()
-    
-    return render_template('admin/jobs.html', 
+    return render_template('admin/jobs.html',
                          jobs=jobs,
                          categories=categories,
                          companies=companies,
@@ -291,7 +300,6 @@ def fetch_jobs_for_company(company_name, category):
     app_id = app.config['ADZUNA_APP_ID']
     app_key = app.config['ADZUNA_APP_KEY']
     new_jobs_found = 0
-    
     for location in INDIAN_CITIES:
         base_url = f"https://api.adzuna.com/v1/api/jobs/{COUNTRY}/search/1"
         params = {
@@ -302,22 +310,18 @@ def fetch_jobs_for_company(company_name, category):
             'where': location,
             'content-type': 'application/json'
         }
-        
         try:
             response = requests.get(base_url, params=params)
             response.raise_for_status()
             data = response.json()
-            
             if 'results' in data:
                 for job in data['results']:
                     job_company = job.get('company', {}).get('display_name', '')
                     if company_name.lower() not in job_company.lower():
                         continue
-                    
                     job_title = job.get('title', '')
                     job_url = job.get('redirect_url', '')
                     job_id = get_job_hash(job_company, job_title, job_url)
-                    
                     if not JobPosting.query.filter_by(job_id=job_id).first():
                         date_posted = datetime.datetime.now()
                         if 'created' in job:
@@ -325,7 +329,6 @@ def fetch_jobs_for_company(company_name, category):
                                 date_posted = datetime.datetime.strptime(job['created'].split('T')[0], '%Y-%m-%d')
                             except ValueError:
                                 pass
-                        
                         new_job = JobPosting(
                             job_id=job_id,
                             company=job_company,
@@ -341,13 +344,10 @@ def fetch_jobs_for_company(company_name, category):
                         )
                         db.session.add(new_job)
                         new_jobs_found += 1
-                
                 if new_jobs_found > 0:
                     db.session.commit()
-        
         except Exception as e:
             print(f"Error fetching jobs for {company_name} in {location}: {e}")
-    
     return new_jobs_found
 
 @scheduler.task('interval', id='check_jobs', seconds=3600, misfire_grace_time=900)
@@ -355,14 +355,12 @@ def check_all_companies():
     with app.app_context():
         print(f"Job checking started at {datetime.datetime.now()}")
         total_new_jobs = 0
-        
         for category, companies in COMPANIES.items():
             for company in companies:
                 print(f"Checking jobs for {company}...")
                 new_jobs = fetch_jobs_for_company(company, category)
                 total_new_jobs += new_jobs
                 print(f"Found {new_jobs} new jobs for {company}")
-        
         print(f"Job checking completed at {datetime.datetime.now()}. Total new jobs: {total_new_jobs}")
 
 @app.route('/manual_check')
@@ -374,21 +372,5 @@ def manual_check():
     return redirect(url_for('admin_dashboard'))
 
 if __name__ == '__main__':
-    with app.app_context():
-        if os.path.exists('jobs.db'):
-            db.drop_all()
-        db.create_all()
-        
-        if User.query.count() == 0:
-            admin = User(
-                username='admin',
-                email='admin@example.com',
-                password=bcrypt.generate_password_hash('admin').decode('utf-8'),
-                is_admin=True
-            )
-            db.session.add(admin)
-            db.session.commit()
-            print("Admin user created: admin@example.com / admin")
-    
     scheduler.start()
     app.run(debug=True)
