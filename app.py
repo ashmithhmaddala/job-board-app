@@ -178,12 +178,11 @@ def register():
         # Send verification email
         send_verification_email(email)
         flash(
-    'A verification email has been sent. Please check your inbox. Ensure to check your spam!<br>'
-    'Didn\'t get it? <a href="{}?email={}">Resend verification email</a>.'
-    .format(url_for('resend_verification'), email),
-    'info'
-)
-
+            'A verification email has been sent. Please check your inbox. <b>Also check your spam folder!</b><br>'
+            'Didn\'t get it? <a href="{}?email={}">Resend verification email</a>.'
+            .format(url_for('resend_verification'), email),
+            'info'
+        )
         return redirect(url_for('login'))
     return render_template('register.html')
 
@@ -214,7 +213,7 @@ def send_verification_email(email):
                 If you did not sign up, you can safely ignore this email.<br>
                 Need help? Reply to this email or contact support.
             </p>
-            <p style="font-size: 0.9em; color: #888;">Best regards,<br>Ashmith Maddala(CEO)<br>Job Board Monitor Team</p>
+            <p style="font-size: 0.9em; color: #888;">Best regards,<br>Ashmith Maddala (CEO)<br>Job Board Monitor Team</p>
         </div>
     </body>
     </html>
@@ -225,7 +224,6 @@ def send_verification_email(email):
         html=html_content
     )
     mail.send(msg)
-
 
 @app.route('/resend_verification')
 def resend_verification():
@@ -523,7 +521,8 @@ def fetch_jobs_for_company(company_name, category):
             print(f"Error fetching jobs for {company_name} in {location}: {e}")
     return new_jobs_found
 
-@scheduler.task('interval', id='check_jobs', seconds=3600, misfire_grace_time=900)
+# Fetch jobs automatically every hour (change hours=24 for once per day)
+@scheduler.task('interval', id='check_jobs', hours=1, misfire_grace_time=900)
 def check_all_companies():
     with app.app_context():
         print(f"Job checking started at {datetime.datetime.now()}")
