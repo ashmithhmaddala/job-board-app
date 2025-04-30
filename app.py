@@ -12,9 +12,15 @@ from flask_migrate import Migrate, upgrade as alembic_upgrade
 from flask_mail import Mail, Message
 from itsdangerous import URLSafeTimedSerializer
 from functools import wraps
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
+import os
 
-load_dotenv()
+# This will search for .env in the current directory and all parents
+load_dotenv(find_dotenv())
+
+print("MAIL_USERNAME:", os.environ.get('MAIL_USERNAME'))
+print("MAIL_PASSWORD:", os.environ.get('MAIL_PASSWORD'))
+
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
@@ -77,6 +83,7 @@ class User(UserMixin, db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
     is_admin = db.Column(db.Boolean, default=False)
+    is_verified = db.Column(db.Boolean, default=False)  # <-- NEW FIELD
     created_at = db.Column(db.DateTime, default=datetime.datetime.now)
     last_login = db.Column(db.DateTime)
     applied = db.relationship('JobPosting', secondary=applied_jobs, backref='applicants')
@@ -134,6 +141,9 @@ def login():
         password = request.form.get('password')
         user = User.query.filter_by(email=email).first()
         if user and bcrypt.check_password_hash(user.password, password):
+            if not user.is_verified:
+                flash('Please verify your email before logging in. Check your inbox.', 'warning')
+                return redirect(url_for('login'))
             login_user(user)
             user.last_login = datetime.datetime.now()
             db.session.commit()
@@ -145,6 +155,48 @@ def login():
         else:
             flash('Login failed. Check email and password.', 'danger')
     return render_template('login.html')
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard'))
+    if request.method == 'POST':
+        username = request.form.get('username')
+        email = request.form.get('email')
+        password = request.form.get('password')
+        if User.query.filter_by(email=email).first():
+            flash('Email already registered', 'danger')
+            return redirect(url_for('register'))
+        hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
+        user = User(username=username, email=email, password=hashed_password, is_verified=False)
+        db.session.add(user)
+        db.session.commit()
+        # Send verification email
+        token = serializer.dumps(email, salt='email-verify')
+        verify_url = url_for('verify_email', token=token, _external=True)
+        msg = Message('Verify your Job Board Monitor email',
+                      recipients=[email],
+                      body=f'Click the link to verify your email: {verify_url}')
+        mail.send(msg)
+        flash('A verification email has been sent. Please check your inbox.', 'info')
+        return redirect(url_for('login'))
+    return render_template('register.html')
+
+@app.route('/verify/<token>')
+def verify_email(token):
+    try:
+        email = serializer.loads(token, salt='email-verify', max_age=3600*24)  # 24 hours
+    except Exception:
+        flash('Verification link is invalid or expired.', 'danger')
+        return redirect(url_for('login'))
+    user = User.query.filter_by(email=email).first()
+    if user:
+        user.is_verified = True
+        db.session.commit()
+        flash('Your email has been verified! You can now log in.', 'success')
+    else:
+        flash('User not found.', 'danger')
+    return redirect(url_for('login'))
 
 @app.route('/forgot_password', methods=['GET', 'POST'])
 def forgot_password():
@@ -184,26 +236,6 @@ def reset_password(token):
             return redirect(url_for('login'))
 
     return render_template('reset_password.html', token=token)
-
-@app.route('/register', methods=['GET', 'POST'])
-def register():
-    if current_user.is_authenticated:
-        return redirect(url_for('dashboard'))
-    if request.method == 'POST':
-        username = request.form.get('username')
-        email = request.form.get('email')
-        password = request.form.get('password')
-        if User.query.filter_by(email=email).first():
-            flash('Email already registered', 'danger')
-            return redirect(url_for('register'))
-        hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
-        is_admin = (User.query.count() == 0)
-        user = User(username=username, email=email, password=hashed_password, is_admin=is_admin)
-        db.session.add(user)
-        db.session.commit()
-        flash('Account created! You can now log in.', 'success')
-        return redirect(url_for('login'))
-    return render_template('register.html')
 
 @app.route('/logout')
 @login_required
