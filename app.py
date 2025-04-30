@@ -9,6 +9,8 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from flask_bcrypt import Bcrypt
 from flask_apscheduler import APScheduler
 from flask_migrate import Migrate, upgrade as alembic_upgrade
+from flask_mail import Mail, Message
+from itsdangerous import URLSafeTimedSerializer
 from functools import wraps
 from dotenv import load_dotenv
 
@@ -29,6 +31,14 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['ADZUNA_APP_ID'] = os.environ.get('ADZUNA_APP_ID')
 app.config['ADZUNA_APP_KEY'] = os.environ.get('ADZUNA_APP_KEY')
 
+# --- Flask-Mail config (set these in your .env and Render dashboard) ---
+app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')
+app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 587))
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
+app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
+app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', app.config['MAIL_USERNAME'])
+
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 bcrypt = Bcrypt(app)
@@ -37,6 +47,8 @@ login_manager.login_view = 'login'
 scheduler = APScheduler()
 scheduler.init_app(app)
 scheduler.api_enabled = True
+mail = Mail(app)
+serializer = URLSafeTimedSerializer(app.config['SECRET_KEY'])
 
 # Many-to-many relationship table for applied jobs
 applied_jobs = db.Table('applied_jobs',
@@ -133,6 +145,45 @@ def login():
         else:
             flash('Login failed. Check email and password.', 'danger')
     return render_template('login.html')
+
+@app.route('/forgot_password', methods=['GET', 'POST'])
+def forgot_password():
+    if request.method == 'POST':
+        email = request.form.get('email')
+        user = User.query.filter_by(email=email).first()
+        if user:
+            token = serializer.dumps(user.email, salt='password-reset-salt')
+            reset_url = url_for('reset_password', token=token, _external=True)
+            msg = Message('Password Reset Request',
+                          recipients=[user.email],
+                          body=f'Click the link to reset your password: {reset_url}')
+            mail.send(msg)
+            flash('Password reset link sent to your email.', 'info')
+        else:
+            flash('No account with that email was found.', 'danger')
+    return render_template('forgot_password.html')
+
+@app.route('/reset_password/<token>', methods=['GET', 'POST'])
+def reset_password(token):
+    try:
+        email = serializer.loads(token, salt='password-reset-salt', max_age=3600)
+    except Exception:
+        flash('The password reset link is invalid or has expired.', 'danger')
+        return redirect(url_for('login'))
+
+    if request.method == 'POST':
+        user = User.query.filter_by(email=email).first()
+        if user:
+            new_password = request.form.get('password')
+            user.password = bcrypt.generate_password_hash(new_password).decode('utf-8')
+            db.session.commit()
+            flash('Your password has been updated!', 'success')
+            return redirect(url_for('login'))
+        else:
+            flash('User not found.', 'danger')
+            return redirect(url_for('login'))
+
+    return render_template('reset_password.html', token=token)
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
