@@ -13,14 +13,9 @@ from flask_mail import Mail, Message
 from itsdangerous import URLSafeTimedSerializer
 from functools import wraps
 from dotenv import load_dotenv, find_dotenv
-import os
 
-# This will search for .env in the current directory and all parents
+# Load .env variables
 load_dotenv(find_dotenv())
-
-print("MAIL_USERNAME:", os.environ.get('MAIL_USERNAME'))
-print("MAIL_PASSWORD:", os.environ.get('MAIL_PASSWORD'))
-
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
@@ -37,13 +32,15 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['ADZUNA_APP_ID'] = os.environ.get('ADZUNA_APP_ID')
 app.config['ADZUNA_APP_KEY'] = os.environ.get('ADZUNA_APP_KEY')
 
-# --- Flask-Mail config (set these in your .env and Render dashboard) ---
+# --- Flask-Mail config ---
 app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')
 app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 587))
 app.config['MAIL_USE_TLS'] = True
 app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
 app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
 app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', app.config['MAIL_USERNAME'])
+app.config['MAIL_SUPPRESS_SEND'] = False
+app.config['TESTING'] = False
 
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
@@ -83,7 +80,7 @@ class User(UserMixin, db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
     is_admin = db.Column(db.Boolean, default=False)
-    is_verified = db.Column(db.Boolean, default=False)  # <-- NEW FIELD
+    is_verified = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.datetime.now)
     last_login = db.Column(db.DateTime)
     applied = db.relationship('JobPosting', secondary=applied_jobs, backref='applicants')
@@ -141,8 +138,15 @@ def login():
         password = request.form.get('password')
         user = User.query.filter_by(email=email).first()
         if user and bcrypt.check_password_hash(user.password, password):
-            if not user.is_verified:
-                flash('Please verify your email before logging in. Check your inbox.', 'warning')
+            # Only block non-admins if not verified
+            if not user.is_verified and not user.is_admin:
+                flash(
+                    'Your account is not verified. '
+                    'Please check your email for the verification link.<br>'
+                    'Didn\'t get it? <a href="{}?email={}">Resend verification email</a>.'
+                    .format(url_for('resend_verification'), email),
+                    'warning'
+                )
                 return redirect(url_for('login'))
             login_user(user)
             user.last_login = datetime.datetime.now()
@@ -172,15 +176,67 @@ def register():
         db.session.add(user)
         db.session.commit()
         # Send verification email
-        token = serializer.dumps(email, salt='email-verify')
-        verify_url = url_for('verify_email', token=token, _external=True)
-        msg = Message('Verify your Job Board Monitor email',
-                      recipients=[email],
-                      body=f'Click the link to verify your email: {verify_url}')
-        mail.send(msg)
-        flash('A verification email has been sent. Please check your inbox.', 'info')
+        send_verification_email(email)
+        flash(
+    'A verification email has been sent. Please check your inbox. Ensure to check your spam!<br>'
+    'Didn\'t get it? <a href="{}?email={}">Resend verification email</a>.'
+    .format(url_for('resend_verification'), email),
+    'info'
+)
+
         return redirect(url_for('login'))
     return render_template('register.html')
+
+def send_verification_email(email):
+    token = serializer.dumps(email, salt='email-verify')
+    verify_url = url_for('verify_email', token=token, _external=True)
+    html_content = f"""
+    <html>
+    <body style="font-family: Arial, sans-serif; color: #222;">
+        <div style="max-width: 480px; margin: 24px auto; padding: 24px; border-radius: 8px; background: #f8fafc; border: 1px solid #e5e7eb;">
+            <h2 style="color: #2563eb;">Verify your email for Job Board Monitor</h2>
+            <p>Hi,</p>
+            <p>Thank you for registering with <b>Job Board Monitor</b>! Please verify your email address to activate your account. This helps us keep your account secure.</p>
+            <p>
+                <a href="{verify_url}" style="display: inline-block; padding: 12px 24px; background: #2563eb; color: #fff; border-radius: 6px; text-decoration: none; font-weight: bold; margin: 16px 0;">
+                    Verify Email
+                </a>
+            </p>
+            <p style="font-size: 0.97em; color: #555;">
+                Or copy and paste this link into your browser:<br>
+                <span style="word-break: break-all;">{verify_url}</span>
+            </p>
+            <p style="font-size: 0.97em; color: #555;">
+                <b>Note:</b> This link will expire in 24 hours.
+            </p>
+            <hr style="margin: 24px 0;">
+            <p style="font-size: 0.9em; color: #888;">
+                If you did not sign up, you can safely ignore this email.<br>
+                Need help? Reply to this email or contact support.
+            </p>
+            <p style="font-size: 0.9em; color: #888;">Best regards,<br>Ashmith Maddala(CEO)<br>Job Board Monitor Team</p>
+        </div>
+    </body>
+    </html>
+    """
+    msg = Message(
+        subject='Verify your email for Job Board Monitor',
+        recipients=[email],
+        html=html_content
+    )
+    mail.send(msg)
+
+
+@app.route('/resend_verification')
+def resend_verification():
+    email = request.args.get('email')
+    user = User.query.filter_by(email=email).first()
+    if user and not user.is_verified:
+        send_verification_email(email)
+        flash('A new verification email has been sent. Please check your inbox.', 'info')
+    else:
+        flash('No unverified account found for that email.', 'danger')
+    return redirect(url_for('login'))
 
 @app.route('/verify/<token>')
 def verify_email(token):
